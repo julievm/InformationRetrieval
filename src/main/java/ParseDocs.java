@@ -21,7 +21,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
-public class parseDocs {
+public class ParseDocs {
 
     // Directory where the search index will be saved
     private static String INDEX_DIRECTORY = "../index";
