@@ -9,8 +9,15 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 
@@ -19,7 +26,7 @@ public class parseDocs {
     // Directory where the search index will be saved
     private static String INDEX_DIRECTORY = "../index";
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ParseException {
         File file = new File("src/main/cran/cran.all.1400");
 
         // Analyzer analyzer = new EnglishAnalyzer();
@@ -90,6 +97,70 @@ public class parseDocs {
         // Commit everything and close
         iwriter.close();
         directory.close();
+
+        queryIndexing();
+    }
+
+    public static void queryIndexing() throws IOException, ParseException {
+        // Open the folder that contains our search index
+        // the location of the search index
+        String INDEX_DIRECTORY = "../index";
+
+        // Limit the number of search results we get
+        int MAX_RESULTS = 10;
+        Directory directory2 = FSDirectory.open(Paths.get(INDEX_DIRECTORY));
+        File file = new File("src/main/cran/cran.qry");
+
+        File results = new File("results.txt");
+
+        Analyzer analyzer = new StandardAnalyzer();
+
+        ArrayList<String> strings = new ArrayList<>();
+
+        // create objects to read and search across the index
+        DirectoryReader ireader = DirectoryReader.open(directory2);
+        IndexSearcher isearcher = new IndexSearcher(ireader);
+        isearcher.setSimilarity(new BM25Similarity());
+
+        BufferedWriter writer = new BufferedWriter(new FileWriter(results, true));
+
+        QueryParser parser = new QueryParser("content", analyzer);
+
+        BufferedReader br = new BufferedReader(new FileReader(file));
+
+        String nextLine = br.readLine();
+        int queryID = 1;
+        //read in the whole file containing queries
+        while(nextLine != null){
+            if(nextLine.charAt(0) == '.'){
+                //we ignore the id of the query
+                nextLine = br.readLine();
+                if(nextLine.charAt(1) == 'W'){
+                    //read in the whole query
+                    StringBuilder content = new StringBuilder();
+                    while((nextLine = br.readLine()) != null && nextLine.charAt(0) != '.'){
+                        content.append(nextLine);
+                    }
+//                    System.out.println(content.toString());
+                    String queryString = content.toString().trim().replace("*", "").replace("?", "");
+                    Query query = parser.parse(queryString);
+
+                    ScoreDoc[] hits = isearcher.search(query, 10000).scoreDocs;
+                    // Print the results
+                    System.out.println("Documents: " + hits.length);
+                    for (int i = 0; i < hits.length; i++)
+                    {
+                        Document hitDoc = isearcher.doc(hits[i].doc);
+                        writer.append(queryID + " Q0 " + hitDoc.get("docId") + " " + i + " " + hits[i].score + " STANDARD\n");
+                    }
+                    queryID++;
+                }
+            }
+        }
+        // close everything and quit
+        writer.close();
+        ireader.close();
+        directory2.close();
     }
 
 
